@@ -1,0 +1,62 @@
+name: IPAVault
+options:
+  bundleIdPrefix: com.ipavault
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  ApplePackage:
+    url: https://github.com/Lakr233/ApplePackage.git
+    revision: 391bfe6ee6598d73e4f94b88b38b50bd6f6ec67b
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    from: 0.9.19
+  swift-log:
+    url: https://github.com/apple/swift-log.git
+    from: 1.5.0
+
+targets:
+  IPAVault:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: Sources
+    dependencies:
+      - package: ApplePackage
+        product: ApplePackage
+      - package: ZIPFoundation
+        product: ZIPFoundation
+      - package: swift-log
+        product: Logging
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: IPAVault
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ipavault.app
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "2"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        ENABLE_BITCODE: "NO"
+        GENERATE_INFOPLIST_FILE: "NO"

@@ -1,22 +1,20 @@
-# IPAVault — Нативный iOS IPA Downloader (SwiftUI)
+# IPAVault v2 — Нативный iOS IPA Downloader (FairPlay SAP + 2FA)
 
-Нативное iOS-приложение для входа в Apple ID (с поддержкой 2FA), поиска и выгрузки `.ipa` по **App ID (`adamId`)** — включая **удалённые из App Store** приложения, которые ранее были привязаны к вашему Apple ID, а также выбор конкретной старой версии (`externalVersionId`).
+Нативное iOS-приложение на SwiftUI для стабильного входа в Apple ID (с криптографической подписью **FairPlay SAP / `X-Apple-ActionSignature`** и 2FA), выгрузки **удалённых из App Store** купленных приложений по App ID (`adamId`) и версиям (`externalVersionId`), а также встроенной диагностикой сети.
 
-## Возможности
-- **Рабочий вход Apple ID + 2FA:** ручная обработка редиректов `302` с сохранением POST-тела (перенаправление на нужный Apple Pod), хранение сессии в системном iOS Keychain, мультиаккаунт с выбором региона Storefront.
-- **Выгрузка удалённых приложений по App ID:** прямой запрос к `volumeStoreDownloadProduct` минуя публичный каталог — показывает название, Bundle ID, полный список исторических `externalVersionId` и скачивает выбранную версию.
-- **Полноценная сборка `.ipa`:** потоковое скачивание на диск без перегрузки RAM + автоматический инжект `iTunesMetadata.plist` и FairPlay `SC_Info/*.sinf` через `ZIPFoundation`.
-- **Интеграция с «Файлами» и Share Sheet:** файлы сохраняются в `Файлы → На iPhone → IPAVault → IPAs` и отправляются в TrollStore / SideStore / AltStore / AirDrop в одно нажатие.
+## Возможности v2
+- **Настоящая подпись FairPlay SAP (`X-Apple-ActionSignature`):** устраняет пустые ответы `HTTP 204 / 403` от серверов Apple благодаря динамическому `bag.xml`, двухшаговому рукопожатию SAP (`setupCert.plist` → `signSapSetup/legacy`), постоянному Device GUID в Keychain и сохранению живой SAP-сессии с куками при вводе 6-значного кода 2FA.
+- **Два движка авторизации с переключателем:**
+  1. **ApplePackage (SAP + AsyncHTTPClient)** — проверенный эталонный движок по умолчанию.
+  2. **URLSession + SAP Bridge** — нативный сетевой стек iOS поверх того же `SAPSigner` (удобен при работе через системный VPN/прокси iPhone).
+- **Встроенная панель диагностики на iPhone:** кнопка «Проверить Bag + SAP» (тест соединения и SAP-подписи без ввода пароля), живой журнал HTTP-статусов, заголовков Pod/Storefront и ошибок `failureType` с автоматическим скрытием паролей/токенов и экспортом лога.
+- **Трёхуровневая автоцепочка для удалённых приложений:** прямой запрос `volumeStoreDownloadProduct` → автоматический fallback на `redownload` → `updateProduct`, без зависимости от публичного поиска App Store.
+- **Валидная сборка `.ipa`:** потоковое скачивание на диск + инжект `iTunesMetadata.plist` и FairPlay `SC_Info/*.sinf` через `SignatureInjector` (`ApplePackage` / `ZIPFoundation`), доступ в «Файлах» и экспорт в TrollStore / SideStore / AltStore.
 
-## Как собрать неподписанный `.ipa` за 3 минуты (без Mac и Xcode)
+## Как собрать неподписанный `.ipa` (без Mac и Xcode)
 
-1. Создайте новый репозиторий на [GitHub](https://github.com/new) (публичный или приватный).
-2. Распакуйте архив проекта и загрузите **все файлы и папки** в корень репозитория (убедитесь, что файл `.github/workflows/build-ipa.yml` попал на место).
-3. Откройте вкладку **Actions** в репозитории → выберите **Build Unsigned IPA** → нажмите **Run workflow**.
-4. Подождите 2–3 минуты, пока бесплатный macOS-раннер соберёт проект.
-5. Откройте завершённый запуск → прокрутите вниз до блока **Artifacts** → скачайте **IPAVault-unsigned-ipa** и распакуйте `IPAVault-unsigned.ipa`.
-
-## Установка на iPhone
-Полученный `.ipa` — **неподписанный**. Установите его любым удобным способом:
-- **TrollStore** — ставится напрямую без переподписи.
-- **Sideloadly / AltStore / SideStore / ESign** — автоматически подпишет вашим сертификатом или бесплатным Apple ID.
+1. Создайте репозиторий на [GitHub](https://github.com/new) (публичный — бесплатные минуты macOS; приватный — в рамках лимита GitHub Free).
+2. Распакуйте `IPAVault-iOS.zip` и загрузите **все файлы** в корень репозитория (включая `.github/workflows/build-ipa.yml`).
+3. Откройте вкладку **Actions → Build Unsigned IPA → Run workflow**. Сборка идёт на раннере **`macos-26`** (Xcode 26 / Swift 6.2).
+4. Через 3–5 минут (при первой сборке компилируются `ApplePackage` и `OpenSSL`) скачайте артефакт **`IPAVault-unsigned-ipa`** и распакуйте `IPAVault-unsigned.ipa`.
+5. Установите на iPhone через **TrollStore**, **Sideloadly**, **AltStore**, **SideStore** или **ESign**.
