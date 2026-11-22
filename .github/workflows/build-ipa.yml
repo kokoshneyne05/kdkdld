@@ -1,0 +1,90 @@
+name: Build IPAVault (SideStore Anisette + Native ipatool)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build tools (xcodegen, cmake, go)
+        run: |
+          command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
+          command -v cmake >/dev/null 2>&1 || brew install cmake
+          command -v go >/dev/null 2>&1 || brew install go
+          xcodegen --version
+          cmake --version
+          go version
+          xcodebuild -version
+          swift --version
+
+      - name: Fetch pinned MapleSAP & native SAP scripts
+        run: |
+          rm -rf /tmp/waffle-engine MapleSyrup scripts
+          git clone https://github.com/nxtcoreee3/WaffleStore.git /tmp/waffle-engine
+          cd /tmp/waffle-engine
+          git checkout 921f364bb4659d5bc01b808c5bcd6d1119e4d2c5
+          cp -R MapleSyrup "$GITHUB_WORKSPACE/MapleSyrup"
+          cp -R scripts "$GITHUB_WORKSPACE/scripts"
+          rm -rf /tmp/waffle-engine
+
+      - name: Patch MapleSAP for direct Deleted Apps & 4-tier cascade
+        run: |
+          python3 patches/patch_maplesap.py MapleSyrup/SAPKit/Sources/MapleSAP
+
+      - name: Build native iOS arm64 libraries (libunicorn.a + libWaffleSAP.a)
+        run: |
+          chmod +x scripts/*.sh
+          PLATFORM_NAME=iphoneos bash scripts/ensure-native.sh
+          ls -lh build/Native/libunicorn.a build/Native/libWaffleSAP.a
+
+      - name: Generate Xcode project (zero external SPM deps)
+        run: |
+          xcodegen generate
+
+      - name: Build unsigned Release iOS app
+        run: |
+          xcodebuild \
+            -project IPAVault.xcodeproj \
+            -scheme IPAVault \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            clean build \
+            DEVELOPMENT_TEAM="" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/IPAVault.app"
+          test -d "$APP_PATH"
+          rm -rf build/Payload IPAVault-SideStoreAnisette-unsigned.ipa
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/IPAVault.app
+          codesign --remove build/Payload/IPAVault.app || true
+          rm -rf build/Payload/IPAVault.app/_CodeSignature
+          rm -f build/Payload/IPAVault.app/embedded.mobileprovision
+          (cd build && zip -qr ../IPAVault-SideStoreAnisette-unsigned.ipa Payload)
+          ls -lh IPAVault-SideStoreAnisette-unsigned.ipa
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IPAVault-SideStoreAnisette-unsigned-ipa
+          path: IPAVault-SideStoreAnisette-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30

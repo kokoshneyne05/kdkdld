@@ -1,43 +1,36 @@
-# WaffleStore + Deleted Apps (Unsigned IPA Builder)
+# IPAVault — SideStore Anisette + Native ipatool Engine + Deleted Apps
 
-Автоматическая сборка неподписанного `.ipa` на базе рабочего Apple ID логина **nxtcoreee3/WaffleStore** (Unicorn TCI + MapleSAP + `WaffleSAPKBSync`) с добавленным модулем прямого поиска и выгрузки **удалённых из App Store приложений по числовому App ID (`adamId`)**.
+Нативное SwiftUI iOS-приложение (без единой внешней сторонней SPM-зависимости) с официальными серверами **SideStore Anisette**, нативным FairPlay SAP / `kbsync` ядром `ipatool` (`libunicorn.a` + `libWaffleSAP.a`) и прямым поиском/выгрузкой **удалённых из App Store приложений по числовому App ID (`adamId`)**.
 
-## Что объединено
+## Почему это гарантированно собирается на `macos-15` (Xcode 16)
 
-1. **Авторизация Apple ID (100% из WaffleStore без изменений)**
-   - Используется оригинальный движок `MapleSAP` + нативные библиотеки `libunicorn.a` и `libWaffleSAP.a` (компилируются автоматически из исходников при сборке).
-   - Полностью сохранён рабочий вход, 2FA, Keychain-сессия и генерация `kbsync`.
-2. **Прямой поиск и выгрузка удалённых приложений по App ID**
-   - Обход публичного каталога (`itunes.apple.com/lookup` и `uclient-api/.../lookup`), которые возвращают пустоту для удалённых приложений.
-   - Автоматический 4-ступенчатый каскад Apple:
+- **0 внешних Swift Package Manager зависимостей** — полностью убраны `PartyUI` (требовавший Xcode 26 / Swift 6.2), `Telegraph`, `OpenSSL`, `Zip`, `ZsignSwift` и `ApplePackage`. Ошибки `Could not resolve package dependencies (exit code 74)` больше физически невозможны.
+- Локальный пакет `MapleSAP` (`swift-tools-version: 5.9`) + нативные библиотеки `libunicorn.a` (Unicorn 2.1.4 TCI) и `libWaffleSAP.a` (`majd/ipatool@3411d57`) собираются на стандартном **`macos-15`** через `cmake`, `go` и `xcodegen`.
+
+## Как работает вход и выгрузка удалённых IPA
+
+1. **SideStore Anisette + авто-failover**
+   - Загружает актуальный список серверов из официального `SideStore/anisette-servers/main/servers.json` (плюс встроенный резервный список `ani.idevicehacked.com`, `ani.neoarz.com`, `ani3server.fly.dev`, `ani.jaydenha.uk`, `ani.sidestore.io` и поле для своего URL).
+   - Кнопка **«Проверить Anisette сервер»** проверяет живые заголовки (`X-Apple-I-MD`, `X-Apple-I-MD-M`, `X-Apple-I-MD-RINFO`) и задержку в миллисекундах.
+   - При входе прикрепляет SideStore Anisette заголовки (`X-Apple-AMD`, `X-Apple-AMD-M`, `X-MMe-Client-Info`, `X-Mme-Device-Id`) вместе с нативной FairPlay SAP подписью (`X-Apple-ActionSignature`).
+2. **Прямой поиск удалённых приложений по App ID**
+   - Обходит публичный каталог App Store (`itunes.apple.com/lookup`), выполняет 4-ступенчатый каскад Apple:
      `ent/download (kbsync)` → `p{pod}-buy volumeStoreDownloadProduct` → Bag `redownloadProduct` → Bag `updateProduct`.
-   - Разбор ответа Apple напрямую по `itemId` без предварительного знания `bundleId` и версии (`StoreParsing.downloadDirect`) — из ответа извлекаются реальное название, `Bundle ID`, все исторические `externalVersionId` и SINF.
-   - Авто-переключение: если обычный `Downgrade App` не находит ID в каталоге App Store, он сам переключается в режим удалённого приложения; также доступна отдельная кнопка **«Найти удалённое по ID (без каталога)»**.
-   - Поддержка ручного ввода конкретного `External Version ID` (если нужно выгрузить конкретную старую сборку).
-3. **Сохранение и экспорт FairPlay IPA без блокировки**
-   - В оригинальном WaffleStore FairPlay-зашифрованные `.ipa` (все официальные приложения из App Store) удалялись сразу после скачивания, если не включена скрытая опция `Risky Options`.
-   - Патч убирает удаление файла: собранный `.ipa` с инжектированными `iTunesMetadata.plist` и `SC_Info/*.sinf` всегда сохраняется в `Documents/Downloads` и готов к отправке через **Export IPA** или через приложение «Файлы» на iPhone.
+   - Показывает реальное название, `Bundle ID` и **полный список всех исторических `externalVersionId`** с фильтром и загрузкой в 1 клик.
+3. **Готовый IPA без блокировки FairPlay**
+   - Нативный упаковщик `WafflePrepareIPA` проверяет MD5, инжектит `iTunesMetadata.plist` и `SC_Info/*.sinf` и сохраняет готовый `.ipa` в `Documents/Downloads` (виден через Share Sheet и приложение «Файлы» на iPhone).
 
-## Как собрать `.ipa` через GitHub Actions (бесплатно, без Mac)
+## Сборка `.ipa` на GitHub Actions (без Mac)
 
-1. Создайте новый репозиторий на GitHub (например, `WaffleStore-DeletedApps`).
-2. Распакуйте скачанный архив и загрузите файлы в ветку `main`:
+1. Распакуйте `IPAVault-SideStoreAnisette.zip` и отправьте в ветку `main` вашего репозитория:
    ```bash
-   unzip WaffleStore-DeletedApps.zip -d WaffleStore-DeletedApps
-   cd WaffleStore-DeletedApps
+   unzip IPAVault-SideStoreAnisette.zip -d IPAVault
+   cd IPAVault
    git init -b main
    git add .
-   git commit -m "WaffleStore + Deleted Apps builder"
-   git remote add origin https://github.com/ВАШ_ЛОГИН/WaffleStore-DeletedApps.git
+   git commit -m "IPAVault: SideStore Anisette + native ipatool + deleted apps"
+   git remote add origin https://github.com/ВАШ_ЛОГИН/IPAVault.git
    git push -u origin main --force
    ```
-3. Откройте вкладку **Actions → Build WaffleStore + Deleted Apps IPA → Run workflow** (или дождитесь автозапуска после `git push`).
-4. Через 5–8 минут (компиляция `libunicorn.a` + `libWaffleSAP.a` + `WaffleStore`) в разделе **Artifacts** появится архив **`WaffleStore-DeletedApps-unsigned-ipa`** с готовым `WaffleStore-DeletedApps-unsigned.ipa`.
-
-## Как выгружать удалённые приложения на iPhone
-
-1. Установите `WaffleStore-DeletedApps-unsigned.ipa` через TrollStore, SideStore, AltStore, Sideloadly или LiveContainer.
-2. Войдите в свой Apple ID (того аккаунта, на котором приложение когда-то было скачано/куплено — со значком облачка в истории покупок).
-3. В поле ввода укажите числовой App ID (например, `310633997`) или ссылку App Store.
-4. При желании укажите конкретный `External Version ID` во втором поле, либо оставьте его пустым для выбора из всего списка исторических версий.
-5. Нажмите **«Найти удалённое по ID (без каталога)»** → выберите нужную версию → дождитесь скачивания и нажмите **Export IPA**.
+2. Откройте **Actions → Build IPAVault (SideStore Anisette + Native ipatool)**.
+3. Через 4–6 минут в **Artifacts** появится **`IPAVault-SideStoreAnisette-unsigned-ipa`**.
