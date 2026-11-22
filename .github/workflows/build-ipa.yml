@@ -1,0 +1,54 @@
+name: Build WaffleStore + Deleted Apps IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install native build dependencies (cmake, go)
+        run: |
+          command -v cmake >/dev/null 2>&1 || brew install cmake
+          command -v go >/dev/null 2>&1 || brew install go
+          cmake --version
+          go version
+          xcodebuild -version
+
+      - name: Clone pinned WaffleStore upstream
+        run: |
+          rm -rf upstream
+          git clone https://github.com/nxtcoreee3/WaffleStore.git upstream
+          cd upstream
+          git checkout 921f364bb4659d5bc01b808c5bcd6d1119e4d2c5
+
+      - name: Apply Deleted Apps & FairPlay Export patch
+        run: |
+          python3 patches/apply_deleted_apps_patch.py upstream
+          cd upstream
+          git --no-pager diff --stat
+
+      - name: Build unsigned IPA (Unicorn TCI + MapleSAP + WaffleStore)
+        run: |
+          cd upstream
+          bash ipabuild.sh
+          ls -lh WaffleStore.ipa
+          mv WaffleStore.ipa ../WaffleStore-DeletedApps-unsigned.ipa
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WaffleStore-DeletedApps-unsigned-ipa
+          path: WaffleStore-DeletedApps-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
